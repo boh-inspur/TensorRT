@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,8 @@
 // CUB's bug workaround:
 // To work properly for large batch size CUB segmented sort needs ridiculous
 // workspace alignment.
-const uintptr_t ALIGNMENT = 1 << 20;
+constexpr uintptr_t ALIGNMENT = 1 << 20;
+
 template <typename TFloat>
 struct Bbox
 {
@@ -75,7 +76,6 @@ typedef pluginStatus_t frcnnStatus_t;
 unsigned int hash(const void* array_, size_t size);
 int8_t* alignPtr(int8_t* ptr, uintptr_t to);
 __global__ void setOffset(int stride, int size, int* output);
-bool initNmsLC();
 frcnnStatus_t nms(cudaStream_t stream,
     const int N,
     const int R,
@@ -438,12 +438,6 @@ struct nmsLaunchConfig
 static std::vector<nmsLaunchConfig> nmsLCVec;
 #define FLOAT32 nvinfer1::DataType::kFLOAT
 
-
-static bool initializedNmsLC = initNmsLC();
-
-// }}}
-
-
 __global__ void _inverse_transform_gpu(const float* RPN_prob, const float* RPN_regr, int N,
                                        int INPUT_H, int INPUT_W, int RPN_H, int RPN_W, float RPN_STD_SCALING, int RPN_STRIDE,
                                        float* ANCHOR_SIZES, int anc_size_num, float* ANCHOR_RATIOS, int anc_ratio_num, float bbox_min_size,
@@ -477,18 +471,18 @@ __global__ void _inverse_transform_gpu(const float* RPN_prob, const float* RPN_r
         int as = a / anc_ratio_num;
         float anchor_w = ANCHOR_SIZES[as] * ANCHOR_RATIOS[ar];
         float anchor_h = ANCHOR_SIZES[as] / ANCHOR_RATIOS[ar];
-        float anchor_cx = (w + 0.5f) * RPN_STRIDE; 
-        float anchor_cy = (h + 0.5f) * RPN_STRIDE; 
-        float cx1 = anchor_cx + anchor_w * tx; 
-        float cy1 = anchor_cy + anchor_h * ty; 
-        float w1 = __expf(tw) * anchor_w; 
-        float h1 = __expf(th) * anchor_h; 
-        tx = cx1 - w1 / 2.0f; 
-        ty = cy1 - h1 / 2.0f; 
-        tw = w1; 
-        th = h1; 
-        tw += tx; 
-        th += ty; 
+        float anchor_cx = (w + 0.5f) * RPN_STRIDE;
+        float anchor_cy = (h + 0.5f) * RPN_STRIDE;
+        float cx1 = anchor_cx + anchor_w * tx;
+        float cy1 = anchor_cy + anchor_h * ty;
+        float w1 = __expf(tw) * anchor_w;
+        float h1 = __expf(th) * anchor_h;
+        tx = cx1 - w1 / 2.0f;
+        ty = cy1 - h1 / 2.0f;
+        tw = w1;
+        th = h1;
+        tw += tx;
+        th += ty;
         // clip to min
         tx = (tx >= 0.0f) ? tx : 0.0f;
         ty = (ty >= 0.0f) ? ty : 0.0f;
@@ -711,4 +705,3 @@ int proposalInference_gpu(
                     stream);
     return 0;
 }
-

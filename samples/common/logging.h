@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,9 @@
 #include <sstream>
 #include <string>
 
+namespace sample
+{
+
 using Severity = nvinfer1::ILogger::Severity;
 
 class LogStreamConsumerBuffer : public std::stringbuf
@@ -40,6 +43,8 @@ public:
 
     LogStreamConsumerBuffer(LogStreamConsumerBuffer&& other)
         : mOutput(other.mOutput)
+        , mPrefix(other.mPrefix)
+        , mShouldLog(other.mShouldLog)
     {
     }
 
@@ -425,7 +430,9 @@ private:
         for (int i = 0; i < argc; i++)
         {
             if (i > 0)
+            {
                 ss << " ";
+            }
             ss << argv[i];
         }
         return ss.str();
@@ -487,7 +494,7 @@ inline LogStreamConsumer LOG_ERROR(const Logger& logger)
 
 //!
 //! \brief produces a LogStreamConsumer object that can be used to log messages of severity kINTERNAL_ERROR
-//         ("fatal" severity)
+//!         ("fatal" severity)
 //!
 //! Example usage:
 //!
@@ -499,5 +506,7 @@ inline LogStreamConsumer LOG_FATAL(const Logger& logger)
 }
 
 } // anonymous namespace
+
+} // namespace sample
 
 #endif // TENSORRT_LOGGING_H

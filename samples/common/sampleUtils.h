@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,15 @@
 #ifndef TRT_SAMPLE_UTILS_H
 #define TRT_SAMPLE_UTILS_H
 
+#include <fstream>
 #include <iostream>
 #include <memory>
-#include <fstream>
-#include <random>
 #include <numeric>
+#include <random>
 #include <unordered_map>
 #include <vector>
+
+#include <cuda.h>
 #if CUDA_VERSION < 10000
 #include <half.h>
 #else
@@ -32,37 +34,13 @@
 
 #include "NvInfer.h"
 
+#include "common.h"
+#include "logger.h"
 #include "sampleDevice.h"
+#include "sampleOptions.h"
 
 namespace sample
 {
-
-template <typename T>
-inline T roundUp(T m, T n) { return ((m + n - 1) / n) * n; }
-
-inline int volume(const nvinfer1::Dims& d)
-{
-    return std::accumulate(d.d, d.d + d.nbDims, 1, std::multiplies<int>());
-}
-
-inline int volume(nvinfer1::Dims dims, int vecDim, int comps, int batch)
-{
-    if (vecDim != -1)
-    {
-        dims.d[vecDim] = roundUp(dims.d[vecDim], comps);
-    }
-    return volume(dims) * std::max(batch, 1);
-}
-
-inline
-std::ostream& operator<<(std::ostream& os, const nvinfer1::Dims& dims)
-{
-    for (int i = 0; i < dims.nbDims; ++i)
-    {
-        os << (i ? "x" : "") << dims.d[i];
-    }
-    return os;
-}
 
 inline int dataTypeSize(nvinfer1::DataType dataType)
 {
@@ -75,6 +53,112 @@ inline int dataTypeSize(nvinfer1::DataType dataType)
     case nvinfer1::DataType::kINT8: return 1;
     }
     return 0;
+}
+
+template <typename T>
+inline T roundUp(T m, T n)
+{
+    return ((m + n - 1) / n) * n;
+}
+
+inline int volume(const nvinfer1::Dims& d)
+{
+    return std::accumulate(d.d, d.d + d.nbDims, 1, std::multiplies<int>());
+}
+
+inline int volume(const nvinfer1::Dims& dims, const nvinfer1::Dims& strides, int vecDim, int comps, int batch)
+{
+    int maxNbElems = 1;
+    for (int i = 0; i < dims.nbDims; ++i)
+    {
+        // Get effective length of axis.
+        int d = dims.d[i];
+        // Any dimension is 0, it is an empty tensor.
+        if (d == 0)
+        {
+            return 0;
+        }
+        if (i == vecDim)
+        {
+            d = samplesCommon::divUp(d, comps);
+        }
+        maxNbElems = std::max(maxNbElems, d * strides.d[i]);
+    }
+    return maxNbElems * batch * (vecDim < 0 ? 1 : comps);
+}
+
+inline int volume(nvinfer1::Dims dims, int vecDim, int comps, int batch)
+{
+    if (vecDim != -1)
+    {
+        dims.d[vecDim] = roundUp(dims.d[vecDim], comps);
+    }
+    return volume(dims) * std::max(batch, 1);
+}
+
+inline std::ostream& operator<<(std::ostream& os, const nvinfer1::Dims& dims)
+{
+    for (int i = 0; i < dims.nbDims; ++i)
+    {
+        os << (i ? "x" : "") << dims.d[i];
+    }
+    return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const std::vector<int>& vec)
+{
+    for (int i = 0, e = static_cast<int>(vec.size()); i < e; ++i)
+    {
+        os << (i ? "x" : "") << vec[i];
+    }
+    return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const nvinfer1::WeightsRole role)
+{
+    switch (role)
+    {
+    case nvinfer1::WeightsRole::kKERNEL:
+    {
+        os << "Kernel";
+        break;
+    }
+    case nvinfer1::WeightsRole::kBIAS:
+    {
+        os << "Bias";
+        break;
+    }
+    case nvinfer1::WeightsRole::kSHIFT:
+    {
+        os << "Shift";
+        break;
+    }
+    case nvinfer1::WeightsRole::kSCALE:
+    {
+        os << "Scale";
+        break;
+    }
+    case nvinfer1::WeightsRole::kCONSTANT:
+    {
+        os << "Constant";
+        break;
+    }
+    }
+
+    return os;
+}
+
+inline nvinfer1::Dims toDims(const std::vector<int>& vec)
+{
+    int limit = static_cast<int>(nvinfer1::Dims::MAX_DIMS);
+    if (static_cast<int>(vec.size()) > limit)
+    {
+        sample::gLogWarning << "Vector too long, only first 8 elements are used in dimension." << std::endl;
+    }
+    // Pick first nvinfer1::Dims::MAX_DIMS elements
+    nvinfer1::Dims dims{std::min(static_cast<int>(vec.size()), limit), {}, {}};
+    std::copy_n(vec.begin(), dims.nbDims, std::begin(dims.d));
+    return dims;
 }
 
 template <typename T>
@@ -137,7 +221,7 @@ struct Binding
 
     void fill(const std::string& fileName)
     {
-        std::ifstream file(fileName, std::ios::in|std::ios::binary);
+        std::ifstream file(fileName, std::ios::in | std::ios::binary);
         if (file.is_open())
         {
             file.read(static_cast<char*>(buffer.getHostBuffer()), buffer.getSize());
@@ -169,10 +253,10 @@ struct Binding
             fillBuffer<float>(buffer.getHostBuffer(), volume, -1.0, 1.0);
             break;
         }
-        case nvinfer1::DataType::kHALF:
-        {
+        case nvinfer1::DataType::kHALF: {
 #if CUDA_VERSION < 10000
-            fillBuffer<half_float::half>(buffer.getHostBuffer(), volume, static_cast<half_float::half>(-1.0), static_cast<half_float::half>(-1.0));
+            fillBuffer<half_float::half>(buffer.getHostBuffer(), volume, static_cast<half_float::half>(-1.0),
+                static_cast<half_float::half>(-1.0));
 #else
             fillBuffer<__half>(buffer.getHostBuffer(), volume, -1.0, 1.0);
 #endif
@@ -205,8 +289,7 @@ struct Binding
             dumpBuffer<float>(buffer.getHostBuffer(), volume, separator, os);
             break;
         }
-        case nvinfer1::DataType::kHALF:
-        {
+        case nvinfer1::DataType::kHALF: {
 #if CUDA_VERSION < 10000
             dumpBuffer<half_float::half>(buffer.getHostBuffer(), volume, separator, os);
 #else
@@ -216,23 +299,22 @@ struct Binding
         }
         }
     }
-
 };
 
 class Bindings
 {
 public:
-
-    void addBinding(int b, const std::string& name, bool isInput, int volume, nvinfer1::DataType dataType, const std::string& fileName = "")
+    void addBinding(int b, const std::string& name, bool isInput, int volume, nvinfer1::DataType dataType,
+        const std::string& fileName = "")
     {
         while (mBindings.size() <= static_cast<size_t>(b))
         {
-             mBindings.emplace_back();
-             mDevicePointers.emplace_back();
+            mBindings.emplace_back();
+            mDevicePointers.emplace_back();
         }
         mNames[name] = b;
         mBindings[b].isInput = isInput;
-        mBindings[b].buffer.allocate(volume * dataTypeSize(dataType));
+        mBindings[b].buffer.allocate(static_cast<size_t>(volume) * static_cast<size_t>(dataTypeSize(dataType)));
         mBindings[b].volume = volume;
         mBindings[b].dataType = dataType;
         mDevicePointers[b] = mBindings[b].buffer.getDeviceBuffer();
@@ -249,7 +331,10 @@ public:
         }
     }
 
-    void** getDeviceBuffers() { return mDevicePointers.data(); }
+    void** getDeviceBuffers()
+    {
+        return mDevicePointers.data();
+    }
 
     void transferInputToDevice(TrtCudaStream& stream)
     {
@@ -286,6 +371,7 @@ public:
     void dumpBindingDimensions(int binding, const nvinfer1::IExecutionContext& context, std::ostream& os) const
     {
         const auto dims = context.getBindingDimensions(binding);
+        // Do not add a newline terminator, because the caller may be outputting a JSON string.
         os << dims;
     }
 
@@ -312,7 +398,8 @@ public:
         dumpBindings(context, all, os);
     }
 
-    void dumpBindings(const nvinfer1::IExecutionContext& context, bool (*predicate)(const Binding& b), std::ostream& os) const
+    void dumpBindings(
+        const nvinfer1::IExecutionContext& context, bool (*predicate)(const Binding& b), std::ostream& os) const
     {
         for (const auto& n : mNames)
         {
@@ -361,7 +448,6 @@ public:
     }
 
 private:
-
     std::unordered_map<std::string, int> mNames;
     std::vector<Binding> mBindings;
     std::vector<void*> mDevicePointers;
@@ -370,10 +456,34 @@ private:
 template <typename T>
 struct TrtDestroyer
 {
-    void operator()(T* t) { t->destroy(); }
+    void operator()(T* t)
+    {
+        t->destroy();
+    }
 };
 
-template <typename T> using TrtUniquePtr = std::unique_ptr<T, TrtDestroyer<T> >;
+template <typename T>
+using TrtUniquePtr = std::unique_ptr<T, TrtDestroyer<T>>;
+
+inline bool broadcastIOFormats(const std::vector<IOFormat>& formats, size_t nbBindings, bool isInput = true)
+{
+    bool broadcast = formats.size() == 1;
+    bool validFormatsCount = broadcast || (formats.size() == nbBindings);
+    if (!formats.empty() && !validFormatsCount)
+    {
+        if (isInput)
+        {
+            throw std::invalid_argument(
+                "The number of inputIOFormats must match network's inputs or be one for broadcasting.");
+        }
+        else
+        {
+            throw std::invalid_argument(
+                "The number of outputIOFormats must match network's outputs or be one for broadcasting.");
+        }
+    }
+    return broadcast;
+}
 
 } // namespace sample
 

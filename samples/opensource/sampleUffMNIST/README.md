@@ -4,8 +4,9 @@
 - [Description](#description)
 - [How does this sample work?](#how-does-this-sample-work)
 	* [TensorRT API layers and ops](#tensorrt-api-layers-and-ops)
+- [Preparing sample data](#preparing-sample-data)
 - [Running the sample](#running-the-sample)
-	* [Sample `--help` options](#sample---help-options)
+	* [Sample `--help` options](#sample-help-options)
 - [Additional resources](#additional-resources)
 - [License](#license)
 - [Changelog](#changelog)
@@ -54,23 +55,32 @@ The Scale layer implements a per-tensor, per-channel, or per-element affine tran
 [Shuffle layer](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#shuffle-layer)
 The Shuffle layer implements a reshape and transpose operator for tensors.
 
+## Preparing sample data
+
+1. Download the sample data from [TensorRT release tarball](https://developer.nvidia.com/nvidia-tensorrt-download#), if not already mounted under `/usr/src/tensorrt/data` (NVIDIA NGC containers) and set it to `$TRT_DATADIR`.
+    ```bash
+    export TRT_DATADIR=/usr/src/tensorrt/data
+    pushd $TRT_DATADIR/mnist
+    pip install Pillow
+    python3 download_pgms.py
+    popd
+    ```
 
 ## Running the sample
 
-1.  Compile this sample by running `make` in the `<TensorRT root directory>/samples/sampleUffMNIST` directory. The binary named `sample_uff_mnist` will be created in the `<TensorRT root directory>/bin` directory.
-	```
-	cd <TensorRT root directory>/samples/sampleUffMNIST
-	make
-	```
+1. Compile the sample by following build instructions in [TensorRT README](https://github.com/NVIDIA/TensorRT/).
 
-	Where `<TensorRT root directory>` is where you installed TensorRT.
+2. Run the sample to create an MNIST engine from a UFF model and perform inference using it.
+    ```bash
+	sample_uff_mnist [-h or --help] [-d or --datadir=<path to data directory>] [--useDLACore=<int>] [--int8] [--fp16]
+    ```
 
-2.  Run the sample to create an MNIST engine from a UFF model and perform inference using it.
-	```
-	./sample_uff_mnist [-h or --help] [-d or --datadir=<path to data directory>] [--useDLACore=<int>] [--int8] [--fp16]
-	```
+    For example:
+    ```bash
+    sample_uff_mnist --datadir $TRT_DATADIR/mnist
+    ```
 
-3.  Verify that the sample ran successfully. If the sample runs successfully you should see output similar to the following:
+3. Verify that the sample ran successfully. If the sample runs successfully you should see output similar to the following:
 	```
 	&&&& RUNNING TensorRT.sample_uff_mnist # ./sample_uff_mnist
 	[I] ../../../../../../data/samples/mnist/lenet5.uff
@@ -124,17 +134,11 @@ The Shuffle layer implements a reshape and transpose operator for tensors.
   
 	This output shows that the sample ran successfully; PASSED.
 
-### Sample --help options
 
-To see the full list of available options and their descriptions, use the `-h` or `--help` command line option. For example:
-```
-Usage: ./sample_uff_mnist [-h or --help] [-d or --datadir=<path to data directory>] [--useDLACore=<int>]
---help Display help information
---datadir Specify path to a data directory, overriding the default. This option can be used multiple times to add multiple directories. If no data directories are given, the default is to use (data/samples/mnist/, data/mnist/)
---useDLACore=N Specify a DLA engine for layers that support DLA. Value can range from 0 to n-1, where n is the number of DLA engines on the platform.
---int8 Run in Int8 mode.
---fp16 Run in FP16 mode.
-```
+### Sample `--help` options
+
+To see the full list of available options and their descriptions, use the `-h` or `--help` command line option.
+
 
 # Additional resources
 

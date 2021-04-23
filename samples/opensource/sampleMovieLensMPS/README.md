@@ -9,8 +9,9 @@
 	* [Verifying the output](#verifying-the-output)
 	* [TensorRT API layers and ops](#tensorrt-api-layers-and-ops)
 - [Training an NCF network](#training-an-ncf-network)
+- [Preparing sample data](#preparing-sample-data)
 - [Running the sample](#running-the-sample)
-	* [Sample `--help` options](#sample---help-options)
+	* [Sample `--help` options](#sample-help-options)
 - [Additional resources](#additional-resources)
 - [License](#license)
 - [Changelog](#changelog)
@@ -65,64 +66,45 @@ The Scale layer implements a per-tensor, per-channel, or per-element affine tran
 [Shuffle layer](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#shuffle-layer)
 The Shuffle layer implements a reshape and transpose operator for tensors.
 
-### TensorRT API layers and ops
-
-In this sample, the following layers are used.  For more information about these layers, see the [TensorRT Developer Guide: Layers](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#layers) documentation.
-
-[Activation layer](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#activation-layer)
-The Activation layer implements element-wise activation functions.
-
-[MatrixMultiply layer](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#matrixmultiply-layer)
-The MatrixMultiply layer implements matrix multiplication for a collection of matrices.
-
-[Scale layer](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#scale-layer)
-The Scale layer implements a per-tensor, per-channel, or per-element affine transformation and/or exponentiation by constant values.
-
-[Shuffle layer](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#shuffle-layer)
-The Shuffle layer implements a reshape and transpose operator for tensors.
-
 [TopK layer](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#topk-layer)
 The TopK layer finds the top `K` maximum (or minimum) elements along a dimension, returning a reduced tensor and a tensor of index positions.
 
 ## Training an NCF network
 
-This sample comes with a pre-trained model. However, if you want to train your own model, you would need to also convert the model weights to UFF format before you can run the sample. For step-by-step instructions, refer to the `README.md` file in the `sampleMovieLens` directory.
+This sample comes with a pre-trained model. However, if you want to train your own model, you would need to also convert the model weights to UFF format before you can run the sample. For step-by-step instructions, refer to the `README.md` file in the [sampleMovieLens](../sampleMovieLens) directory.
 
 ## Running the sample
 
-1. Compile this sample by running `make` in the `<TensorRT root directory>/samples/sampleMovieLensMPS` directory. The binary named `sample_movielens_mps` will be created in the `<TensorRT root directory>/bin` directory.
-	```
-	cd <TensorRT root directory>/samples/sampleMovieLensMPS
-	make
-	```
-	Where `<TensorRT root directory>` is where you installed TensorRT.
-
+1. Compile the sample by following build instructions in [TensorRT README](https://github.com/NVIDIA/TensorRT/).
 
 2. Set-up an MPS server.
-	```
+	```bash
 	export CUDA_VISIBLE_DEVICES=<GPU_ID>
-	nvidia-smi -i <GPU_ID> -c EXCLUSIVE_PROCESSexport CUDA_VISIBLE_DEVICES=0
+	nvidia-smi -i <GPU_ID> -c EXCLUSIVE_PROCESS
+	export CUDA_VISIBLE_DEVICES=0
 	export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps # Select a location that's accessible to the given $UID
 	export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log # Select a location that's accessible to the given $UID
 	nvidia-cuda-mps-control -d # Start the daemon.
 	```
 	The log files of MPS are located at:
-	```
+	```bash
 	$CUDA_MPS_LOG_DIRECTORY/control.log
 	$CUDA_MPS_LOG_DIRECTORY/server.log
 	```
+
 3. Set-up an MPS client. Set the following variables in the client process environment. The `CUDA_VISIBLE_DEVICES` variable should not be set in the client's environment.
-	```
+	```bash
 	export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps # Set to the same location as the MPS control daemon
 	export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log # Set to the same location as the MPS control daemon
 	```
+
 4. Run the sample from an MPS client to predict the highest-rated movie for each user on multiple processes.
+	```bash
+	sample_movielens_mps (default batch=32 i.e. num of users, Number of processes=1)
+	sample_movielens_mps -b <bSize> -p <nbProc> (bSize=Batch size i.e. num of users, nbProc=Number of processes)
+	sample_movielens_mps --verbose (prints inputs, groundtruth values, expected vs predicted probabilities)
 	```
-	cd <TensorRT Install>/bin
-	./sample_movielens_mps (default batch=32 i.e. num of users, Number of processes=1)
-	./sample_movielens_mps -b <bSize> -p <nbProc> (bSize=Batch size i.e. num of users, nbProc=Number of processes)
-	./sample_movielens_mps --verbose (prints inputs, groundtruth values, expected vs predicted probabilities)
-	```
+
 5. Verify that the sample ran successfully. If the sample runs successfully you should see output similar to the following:
 	```
 	&&&& RUNNING TensorRT.sample_movielens_mps # build/cuda-		10.0/7.3/x86_64/sample_movielens_mps -b 2 -p 2
@@ -147,22 +129,15 @@ This sample comes with a pre-trained model. However, if you want to train your o
 	This output shows that the sample ran successfully; `PASSED`. The output also shows that the 	predicted items for each user matches the expected items and the duration of the execution. Finally, the sample prints out the PIDs of the processes, showing that the inference is launched on multiple processes.
 
 6. To restore the system to its original state, shutdown MPS, if needed.
-	`echo quit | nvidia-cuda-mps-control`
+	```bash
+    echo quit | nvidia-cuda-mps-control
+    ```
 
-### Sample --help options
 
-To see the full list of available options and their descriptions, use the `-h` or `--help` command line option. For example:
-```
-Usage:
-         ./sample_movielens_mps [-h] [-b NUM_USERS] [-p NUM_PROCESSES] [--useDLACore=<int>] [--verbose]
-        -h             Display help information. All single dash options enable perf mode.
-        -b             Number of Users i.e. Batch Size (default numUsers=32).
-        -p             Number of child processes to launch (default nbProcesses=1. Using MPS with this option is strongly recommended).
-        --useDLACore=N Specify a DLA engine for layers that support DLA. Value can range from 0 to n-1, where n is the number of DLA engines on the platform.
-        --verbose      Enable verbose prints.
-        --int8         Run in Int8 mode.
-        --fp16         Run in FP16 mode.
-```
+### Sample `--help` options
+
+To see the full list of available options and their descriptions, use the `-h` or `--help` command line option.
+
 
 # Additional resources
 

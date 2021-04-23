@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #ifndef TRT_PRIOR_BOX_PLUGIN_H
 #define TRT_PRIOR_BOX_PLUGIN_H
 #include "cudnn.h"
@@ -31,9 +32,7 @@ namespace plugin
 class PriorBox : public IPluginV2Ext
 {
 public:
-    PriorBox(PriorBoxParameters param);
-
-    PriorBox(PriorBoxParameters param, int H, int W);
+    PriorBox(PriorBoxParameters param, int H = 0, int W = 0);
 
     PriorBox(const void* buffer, size_t length);
 
@@ -45,7 +44,7 @@ public:
 
     int initialize() override;
 
-    void terminate() override;
+    void terminate() override{};
 
     size_t getWorkspaceSize(int maxBatchSize) const override;
 
@@ -86,14 +85,16 @@ public:
     void detachFromContext() override;
 
 private:
-    Weights copyToDevice(const void* hostData, size_t count);
-    void serializeFromDevice(char*& hostBuffer, Weights deviceWeights) const;
-    Weights deserializeToDevice(const char*& hostBuffer, size_t count);
+    void setupDeviceMemory();
 
     PriorBoxParameters mParam;
-    int numPriors, H, W;
-    Weights minSize, maxSize, aspectRatios; // not learnable weights
-    const char* mPluginNamespace;
+    int32_t mNumPriors;
+    int32_t mH;
+    int32_t mW;
+    Weights minSize{};      // not learnable weights
+    Weights maxSize{};      // not learnable weights
+    Weights aspectRatios{}; // not learnable weights
+    std::string mPluginNamespace;
 };
 
 class PriorBoxPluginCreator : public BaseCreator
@@ -114,19 +115,8 @@ public:
     IPluginV2Ext* deserializePlugin(const char* name, const void* serialData, size_t serialLength) override;
 
 private:
-    template <typename T>
-    T* allocMemory(int size = 1)
-    {
-        mTmpAllocs.reserve(mTmpAllocs.size() + 1);
-        T* tmpMem = static_cast<T*>(malloc(sizeof(T) * size));
-        mTmpAllocs.push_back(tmpMem);
-        return tmpMem;
-    }
-
-private:
     static PluginFieldCollection mFC;
     static std::vector<PluginField> mPluginAttributes;
-    std::vector<void*> mTmpAllocs;
 };
 } // namespace plugin
 } // namespace nvinfer1

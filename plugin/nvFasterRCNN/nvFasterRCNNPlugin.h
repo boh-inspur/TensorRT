@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #ifndef TRT_NV_PLUGIN_FASTER_RCNN_H
 #define TRT_NV_PLUGIN_FASTER_RCNN_H
 
@@ -91,7 +92,7 @@ private:
 
     // These won't be serialized
     float* anchorsDev{nullptr};
-    const char* mPluginNamespace;
+    std::string mPluginNamespace;
 
     // These need to be serialized
     RPROIParams params;

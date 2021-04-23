@@ -72,6 +72,7 @@ To run the MNIST network on DLA using `trtexec`, issue:
 ```
 ./trtexec --deploy=data/mnist/mnist.prototxt --output=prob --useDLACore=0 --fp16 --allowGPUFallback
 ```
+
 For more information about DLA, see [Working With DLA](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#dla_topic).
 
 ### Example 4: Running an ONNX model with full dimensions and dynamic shapes
@@ -93,10 +94,8 @@ To run an ONNX model in full-dimensions mode with an given input shape:
 To benchmark your ONNX model with a range of possible input shapes:
 
 ```
-./trtexec --onnx=model.onnx --minShapes=input:1x3x244x244 --optShapes=input:16x3x244x244 --maxShapes=<inputName1>input:32x3x244x244 --shapes=input:5x3x244x244
+./trtexec --onnx=model.onnx --minShapes=input:1x3x244x244 --optShapes=input:16x3x244x244 --maxShapes=input:32x3x244x244 --shapes=input:5x3x244x244
 ```
-
-For more information about using dynamic shapes, see [Working With Dynamic Shapes](https://docs.nvidia.com/deeplearning/sdk/tensorrt-developer-guide/index.html#work_dynamic_shapes)
 
 ### Example 5: Collecting and printing a timing trace
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "reorgPlugin.h"
 
 using namespace nvinfer1;
@@ -23,6 +24,14 @@ static const char* REORG_PLUGIN_VERSION{"1"};
 static const char* REORG_PLUGIN_NAME{"Reorg_TRT"};
 PluginFieldCollection ReorgPluginCreator::mFC{};
 std::vector<PluginField> ReorgPluginCreator::mPluginAttributes;
+
+Reorg::Reorg(int C, int H, int W, int stride)
+    : C(C)
+    , H(H)
+    , W(W)
+    , stride(stride)
+{
+}
 
 Reorg::Reorg(int stride)
     : stride(stride)
@@ -116,7 +125,7 @@ void Reorg::setPluginNamespace(const char* pluginNamespace)
 
 const char* Reorg::getPluginNamespace() const
 {
-    return mPluginNamespace;
+    return mPluginNamespace.c_str();
 }
 
 // Return the DataType of the plugin output at the requested index
@@ -165,8 +174,8 @@ void Reorg::detachFromContext() {}
 
 IPluginV2Ext* Reorg::clone() const
 {
-    IPluginV2Ext* plugin = new Reorg(stride);
-    plugin->setPluginNamespace(mPluginNamespace);
+    IPluginV2Ext* plugin = new Reorg(C, H, W, stride);
+    plugin->setPluginNamespace(mPluginNamespace.c_str());
     return plugin;
 }
 

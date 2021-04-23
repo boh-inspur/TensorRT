@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,14 @@
 #ifndef TRT_SAMPLE_OPTIONS_H
 #define TRT_SAMPLE_OPTIONS_H
 
-#include <utility>
-#include <stdexcept>
-#include <vector>
+#include <algorithm>
 #include <array>
+#include <iostream>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
-#include <algorithm>
-#include <iostream>
+#include <utility>
+#include <vector>
 
 #include "NvInfer.h"
 
@@ -64,7 +64,7 @@ using Arguments = std::unordered_multimap<std::string, std::string>;
 
 using IOFormat = std::pair<nvinfer1::DataType, nvinfer1::TensorFormats>;
 
-using ShapeRange = std::array<nvinfer1::Dims, nvinfer1::EnumMax<nvinfer1::OptProfileSelector>()>;
+using ShapeRange = std::array<std::vector<int>, nvinfer1::EnumMax<nvinfer1::OptProfileSelector>()>;
 
 struct Options
 {
@@ -109,17 +109,23 @@ struct BuildOptions : public Options
     int workspace{defaultWorkspace};
     int minTiming{defaultMinTiming};
     int avgTiming{defaultAvgTiming};
+    bool tf32{true};
+    bool refittable{false};
     bool fp16{false};
     bool int8{false};
     bool safe{false};
     bool save{false};
     bool load{false};
+    bool builderCache{true};
+    nvinfer1::ProfilingVerbosity nvtxMode{nvinfer1::ProfilingVerbosity::kDEFAULT};
     std::string engine;
     std::string calibration;
     std::unordered_map<std::string, ShapeRange> shapes;
+    std::unordered_map<std::string, ShapeRange> shapesCalib;
     std::vector<IOFormat> inputFormats;
     std::vector<IOFormat> outputFormats;
-
+    nvinfer1::TacticSources enabledTactics{0};
+    nvinfer1::TacticSources disabledTactics{0};
     void parse(Arguments& arguments) override;
 
     static void help(std::ostream& out);
@@ -146,12 +152,14 @@ struct InferenceOptions : public Options
     int sleep{defaultSleep};
     int streams{defaultStreams};
     bool overlap{true};
+    bool skipTransfers{false};
     bool spin{false};
     bool threads{false};
     bool graph{false};
     bool skip{false};
+    bool rerun{false};
     std::unordered_map<std::string, std::string> inputs;
-    std::unordered_map<std::string, nvinfer1::Dims> shapes;
+    std::unordered_map<std::string, std::vector<int>> shapes;
 
     void parse(Arguments& arguments) override;
 
@@ -163,6 +171,7 @@ struct ReportingOptions : public Options
     bool verbose{false};
     int avgs{defaultAvgRuns};
     float percentile{defaultPercentile};
+    bool refit{false};
     bool output{false};
     bool profile{false};
     std::string exportTimes;
@@ -215,7 +224,6 @@ std::ostream& operator<<(std::ostream& os, const InferenceOptions& options);
 std::ostream& operator<<(std::ostream& os, const ReportingOptions& options);
 
 std::ostream& operator<<(std::ostream& os, const AllOptions& options);
-
 
 } // namespace sample
 

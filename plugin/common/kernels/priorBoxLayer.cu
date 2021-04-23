@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 #include "kernel.h"
-#include "reducedMath.h"
+#include "reducedMathPlugin.h"
 #include <iostream>
 
-using nvinfer1::rt::reduced_divisor;
+using nvinfer1::plugin::reduced_divisor;
 
 template <unsigned nthdsPerCTA>
 __launch_bounds__(nthdsPerCTA)
@@ -123,7 +123,7 @@ __launch_bounds__(nthdsPerCTA)
             outputData[i * 4 + 3] = w;
         }
     }
-    // Simply copy variance to from the parameter to output 
+    // Simply copy variance to from the parameter to output
     float* output = outputData + dim * 4;
     for (int i = blockIdx.x * nthdsPerCTA + threadIdx.x;
          i < dim; i += gridDim.x * nthdsPerCTA)
@@ -195,3 +195,30 @@ pluginStatus_t priorBoxInference(
         return priorBoxGpu(stream, param, H, W, numPriors, numAspectRatios,
                            minSize, nullptr, aspectRatios, outputData);
 }
+
+namespace nvinfer1
+{
+namespace plugin
+{
+pluginStatus_t priorBoxInference(
+    cudaStream_t stream,
+    const PriorBoxParameters param,
+    const int H,
+    const int W,
+    const int numPriors,
+    const int numAspectRatios,
+    const void* minSize,
+    const void* maxSize,
+    const void* aspectRatios,
+    void* outputData)
+{
+    ASSERT(param.numMaxSize >= 0);
+    if (param.numMaxSize)
+        return priorBoxGpu(stream, param, H, W, numPriors, numAspectRatios,
+                           minSize, maxSize, aspectRatios, outputData);
+    else
+        return priorBoxGpu(stream, param, H, W, numPriors, numAspectRatios,
+                           minSize, nullptr, aspectRatios, outputData);
+}
+} // namespace nvinfer1
+} // namespace plugin

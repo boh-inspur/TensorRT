@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #ifndef TRT_BATCHED_NMS_PLUGIN_H
 #define TRT_BATCHED_NMS_PLUGIN_H
-#include "batchedNMSPlugin/batchedNMSInference.h"
-#include "batchedNMSPlugin/gatherNMSOutputs.h"
+#include "gatherNMSOutputs.h"
 #include "kernel.h"
 #include "nmsUtils.h"
 #include "plugin.h"
@@ -32,54 +32,39 @@ namespace plugin
 class BatchedNMSPlugin : public IPluginV2Ext
 {
 public:
-    BatchedNMSPlugin(NMSParameters param);
+    BatchedNMSPlugin(NMSParameters param) noexcept;
+    BatchedNMSPlugin(const void* data, size_t length) noexcept;
+    ~BatchedNMSPlugin() noexcept override = default;
 
-    BatchedNMSPlugin(const void* data, size_t length);
+    // IPluginV2 methods
+    const char* getPluginType() const noexcept override;
+    const char* getPluginVersion() const noexcept override;
+    int getNbOutputs() const noexcept override;
+    Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) noexcept override;
+    bool supportsFormat(DataType type, PluginFormat format) const noexcept override;
+    size_t getWorkspaceSize(int maxBatchSize) const noexcept override;
+    int enqueue(int batchSize, const void* const* inputs, void** outputs, void* workspace,
+        cudaStream_t stream) noexcept override;
+    int initialize() noexcept override;
+    void terminate() noexcept override;
+    size_t getSerializationSize() const noexcept override;
+    void serialize(void* buffer) const noexcept override;
+    void destroy() noexcept override;
+    void setPluginNamespace(const char* libNamespace) noexcept override;
+    const char* getPluginNamespace() const noexcept override;
+    void setClipParam(bool clip) noexcept;
+    void setScoreBits(int32_t scoreBits) noexcept;
 
-    ~BatchedNMSPlugin() override = default;
-
-    int getNbOutputs() const override;
-
-    Dims getOutputDimensions(int index, const Dims* inputs, int nbInputDims) override;
-
-    int initialize() override;
-
-    void terminate() override;
-
-    size_t getWorkspaceSize(int maxBatchSize) const override;
-
-    int enqueue(
-        int batchSize, const void* const* inputs, void** outputs, void* workspace, cudaStream_t stream) override;
-
-    size_t getSerializationSize() const override;
-
-    void serialize(void* buffer) const override;
-
+    // IPluginV2Ext methods
+    nvinfer1::DataType getOutputDataType(int index, const nvinfer1::DataType* inputType, int nbInputs) const
+        noexcept override;
+    bool isOutputBroadcastAcrossBatch(int outputIndex, const bool* inputIsBroadcasted, int nbInputs) const
+        noexcept override;
+    bool canBroadcastInputAcrossBatch(int inputIndex) const noexcept override;
     void configurePlugin(const Dims* inputDims, int nbInputs, const Dims* outputDims, int nbOutputs,
         const DataType* inputTypes, const DataType* outputTypes, const bool* inputIsBroadcast,
-        const bool* outputIsBroadcast, PluginFormat floatFormat, int maxBatchSize) override;
-
-    bool supportsFormat(DataType type, PluginFormat format) const override;
-
-    const char* getPluginType() const override;
-
-    const char* getPluginVersion() const override;
-
-    void destroy() override;
-
-    IPluginV2Ext* clone() const override;
-
-    nvinfer1::DataType getOutputDataType(int index, const nvinfer1::DataType* inputType, int nbInputs) const override;
-
-    void setPluginNamespace(const char* libNamespace) override;
-
-    const char* getPluginNamespace() const override;
-
-    bool isOutputBroadcastAcrossBatch(int outputIndex, const bool* inputIsBroadcasted, int nbInputs) const override;
-
-    bool canBroadcastInputAcrossBatch(int inputIndex) const override;
-
-    void setClipParam(bool clip);
+        const bool* outputIsBroadcast, PluginFormat floatFormat, int maxBatchSize) noexcept override;
+    IPluginV2Ext* clone() const noexcept override;
 
 private:
     NMSParameters param{};
@@ -88,32 +73,99 @@ private:
     int numPriors{};
     std::string mNamespace;
     bool mClipBoxes{};
-    const char* mPluginNamespace;
+    DataType mPrecision;
+    int32_t mScoreBits;
 };
 
-class BatchedNMSPluginCreator : public BaseCreator
+class BatchedNMSDynamicPlugin : public IPluginV2DynamicExt
 {
 public:
-    BatchedNMSPluginCreator();
+    BatchedNMSDynamicPlugin(NMSParameters param) noexcept;
+    BatchedNMSDynamicPlugin(const void* data, size_t length) noexcept;
+    ~BatchedNMSDynamicPlugin() noexcept override = default;
 
-    ~BatchedNMSPluginCreator() override = default;
+    // IPluginV2 methods
+    const char* getPluginType() const noexcept override;
+    const char* getPluginVersion() const noexcept override;
+    int getNbOutputs() const noexcept override;
+    int initialize() noexcept override;
+    void terminate() noexcept override;
+    size_t getSerializationSize() const noexcept override;
+    void serialize(void* buffer) const noexcept override;
+    void destroy() noexcept override;
+    void setPluginNamespace(const char* libNamespace) noexcept override;
+    const char* getPluginNamespace() const noexcept override;
+    void setClipParam(bool clip) noexcept;
+    void setScoreBits(int32_t scoreBits) noexcept;
 
-    const char* getPluginName() const override;
+    // IPluginV2Ext methods
+    nvinfer1::DataType getOutputDataType(int index, const nvinfer1::DataType* inputType, int nbInputs) const
+        noexcept override;
 
-    const char* getPluginVersion() const override;
-
-    const PluginFieldCollection* getFieldNames() override;
-
-    IPluginV2Ext* createPlugin(const char* name, const PluginFieldCollection* fc) override;
-
-    IPluginV2Ext* deserializePlugin(const char* name, const void* serialData, size_t serialLength) override;
+    // IPluginV2DynamicExt methods
+    IPluginV2DynamicExt* clone() const noexcept override;
+    DimsExprs getOutputDimensions(
+        int outputIndex, const DimsExprs* inputs, int nbInputs, IExprBuilder& exprBuilder) noexcept override;
+    bool supportsFormatCombination(
+        int pos, const PluginTensorDesc* inOut, int nbInputs, int nbOutputs) noexcept override;
+    void configurePlugin(const DynamicPluginTensorDesc* in, int nbInputs, const DynamicPluginTensorDesc* out,
+        int nbOutputs) noexcept override;
+    size_t getWorkspaceSize(const PluginTensorDesc* inputs, int nbInputs, const PluginTensorDesc* outputs,
+        int nbOutputs) const noexcept override;
+    int enqueue(const PluginTensorDesc* inputDesc, const PluginTensorDesc* outputDesc, const void* const* inputs,
+        void* const* outputs, void* workspace, cudaStream_t stream) noexcept override;
 
 private:
+    NMSParameters param{};
+    int boxesSize{};
+    int scoresSize{};
+    int numPriors{};
+    std::string mNamespace;
+    bool mClipBoxes{};
+    DataType mPrecision;
+    int32_t mScoreBits;
+};
+
+class BatchedNMSBasePluginCreator : public BaseCreator
+{
+public:
+    BatchedNMSBasePluginCreator() noexcept;
+    ~BatchedNMSBasePluginCreator() noexcept override = default;
+
+    const char* getPluginName() const noexcept override;
+    const char* getPluginVersion() const noexcept override;
+    const PluginFieldCollection* getFieldNames() noexcept override;
+
+protected:
     static PluginFieldCollection mFC;
     NMSParameters params;
     static std::vector<PluginField> mPluginAttributes;
     bool mClipBoxes;
+    int32_t mScoreBits;
+    std::string mPluginName;
 };
+
+class BatchedNMSPluginCreator : public BatchedNMSBasePluginCreator
+{
+public:
+    BatchedNMSPluginCreator() noexcept;
+    ~BatchedNMSPluginCreator() noexcept override = default;
+
+    IPluginV2Ext* createPlugin(const char* name, const PluginFieldCollection* fc) noexcept override;
+    IPluginV2Ext* deserializePlugin(const char* name, const void* serialData, size_t serialLength) noexcept override;
+};
+
+class BatchedNMSDynamicPluginCreator : public BatchedNMSBasePluginCreator
+{
+public:
+    BatchedNMSDynamicPluginCreator() noexcept;
+    ~BatchedNMSDynamicPluginCreator() noexcept override = default;
+
+    IPluginV2DynamicExt* createPlugin(const char* name, const PluginFieldCollection* fc) noexcept override;
+    IPluginV2DynamicExt* deserializePlugin(
+        const char* name, const void* serialData, size_t serialLength) noexcept override;
+};
+
 } // namespace plugin
 } // namespace nvinfer1
 

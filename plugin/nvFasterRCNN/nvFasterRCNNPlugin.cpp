@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "nvFasterRCNNPlugin.h"
 #include <cstdio>
 #include <cstring>
@@ -235,7 +236,7 @@ void RPROIPlugin::destroy()
 IPluginV2Ext* RPROIPlugin::clone() const
 {
     IPluginV2Ext* plugin = new RPROIPlugin(params, anchorsRatiosHost, anchorsScalesHost, A, C, H, W, anchorsDev);
-    plugin->setPluginNamespace(mPluginNamespace);
+    plugin->setPluginNamespace(mPluginNamespace.c_str());
     return plugin;
 }
 
@@ -247,7 +248,7 @@ void RPROIPlugin::setPluginNamespace(const char* pluginNamespace)
 
 const char* RPROIPlugin::getPluginNamespace() const
 {
-    return mPluginNamespace;
+    return mPluginNamespace.c_str();
 }
 
 // Return the DataType of the plugin output at the requested index.

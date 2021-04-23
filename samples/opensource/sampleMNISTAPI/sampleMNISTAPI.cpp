@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -90,6 +90,8 @@ private:
 
     std::map<std::string, nvinfer1::Weights> mWeightMap; //!< The weight name to weight value map
 
+    std::vector<SampleUniquePtr<nvinfer1::IHostMemory>> weightsMemory; //!< Host weights memory holder
+
     std::shared_ptr<nvinfer1::ICudaEngine> mEngine; //!< The TensorRT engine used to run the network
 
     //!
@@ -126,7 +128,7 @@ bool SampleMNISTAPI::build()
 {
     mWeightMap = loadWeights(locateFile(mParams.weightsFile, mParams.dataDirs));
 
-    auto builder = SampleUniquePtr<nvinfer1::IBuilder>(nvinfer1::createInferBuilder(gLogger.getTRTLogger()));
+    auto builder = SampleUniquePtr<nvinfer1::IBuilder>(nvinfer1::createInferBuilder(sample::gLogger.getTRTLogger()));
     if (!builder)
     {
         return false;
@@ -375,20 +377,6 @@ bool SampleMNISTAPI::verifyOutput(const samplesCommon::BufferManager& buffers)
 //!
 bool SampleMNISTAPI::teardown()
 {
-    // Release weights host memory
-    for (auto& mem : mWeightMap)
-    {
-        auto weight = mem.second;
-        if (weight.type == DataType::kFLOAT)
-        {
-            delete[] static_cast<const uint32_t*>(weight.values);
-        }
-        else
-        {
-            delete[] static_cast<const uint16_t*>(weight.values);
-        }
-    }
-
     return true;
 }
 
@@ -400,7 +388,7 @@ bool SampleMNISTAPI::teardown()
 //!
 std::map<std::string, nvinfer1::Weights> SampleMNISTAPI::loadWeights(const std::string& file)
 {
-    gLogInfo << "Loading weights: " << file << std::endl;
+    sample::gLogInfo << "Loading weights: " << file << std::endl;
 
     // Open weights file
     std::ifstream input(file, std::ios::binary);
@@ -426,7 +414,10 @@ std::map<std::string, nvinfer1::Weights> SampleMNISTAPI::loadWeights(const std::
         // Load blob
         if (wt.type == DataType::kFLOAT)
         {
-            uint32_t* val = new uint32_t[size];
+            // Use uint32_t to create host memory to avoid additional conversion.
+            auto mem = new samplesCommon::TypedHostMemory<uint32_t, nvinfer1::DataType::kFLOAT>(size);
+            weightsMemory.emplace_back(mem);
+            uint32_t* val = mem->raw();
             for (uint32_t x = 0; x < size; ++x)
             {
                 input >> std::hex >> val[x];
@@ -435,7 +426,10 @@ std::map<std::string, nvinfer1::Weights> SampleMNISTAPI::loadWeights(const std::
         }
         else if (wt.type == DataType::kHALF)
         {
-            uint16_t* val = new uint16_t[size];
+            // HalfMemory's raw type is uint16_t
+            auto mem = new samplesCommon::HalfMemory(size);
+            weightsMemory.emplace_back(mem);
+            auto val = mem->raw();
             for (uint32_t x = 0; x < size; ++x)
             {
                 input >> std::hex >> val[x];
@@ -507,7 +501,7 @@ int main(int argc, char** argv)
     bool argsOK = samplesCommon::parseArgs(args, argc, argv);
     if (!argsOK)
     {
-        gLogError << "Invalid arguments" << std::endl;
+        sample::gLogError << "Invalid arguments" << std::endl;
         printHelpInfo();
         return EXIT_FAILURE;
     }
@@ -517,26 +511,26 @@ int main(int argc, char** argv)
         return EXIT_SUCCESS;
     }
 
-    auto sampleTest = gLogger.defineTest(gSampleName, argc, argv);
+    auto sampleTest = sample::gLogger.defineTest(gSampleName, argc, argv);
 
-    gLogger.reportTestStart(sampleTest);
+    sample::gLogger.reportTestStart(sampleTest);
 
     SampleMNISTAPI sample(initializeSampleParams(args));
 
-    gLogInfo << "Building and running a GPU inference engine for MNIST API" << std::endl;
+    sample::gLogInfo << "Building and running a GPU inference engine for MNIST API" << std::endl;
 
     if (!sample.build())
     {
-        return gLogger.reportFail(sampleTest);
+        return sample::gLogger.reportFail(sampleTest);
     }
     if (!sample.infer())
     {
-        return gLogger.reportFail(sampleTest);
+        return sample::gLogger.reportFail(sampleTest);
     }
     if (!sample.teardown())
     {
-        return gLogger.reportFail(sampleTest);
+        return sample::gLogger.reportFail(sampleTest);
     }
 
-    return gLogger.reportPass(sampleTest);
+    return sample::gLogger.reportPass(sampleTest);
 }

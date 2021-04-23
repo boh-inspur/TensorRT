@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "detectionLayerPlugin.h"
 #include "plugin.h"
 #include <cuda_runtime_api.h>
@@ -156,7 +157,9 @@ const char* DetectionLayer::getPluginVersion() const
 
 IPluginV2Ext* DetectionLayer::clone() const
 {
-    return new DetectionLayer(*this);
+    DetectionLayer* plugin = new DetectionLayer(*this);
+    plugin->setPluginNamespace(mNameSpace.c_str());
+    return plugin;
 };
 
 void DetectionLayer::setPluginNamespace(const char* libNamespace)

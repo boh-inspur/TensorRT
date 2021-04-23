@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #ifndef TRT_PROPOSAL_LAYER_PLUGIN_H
 #define TRT_PROPOSAL_LAYER_PLUGIN_H
 #include <cassert>
@@ -34,7 +35,7 @@ namespace plugin
 class ProposalLayer : public IPluginV2Ext
 {
 public:
-    ProposalLayer(int prenms_topk, int keep_topk, float iou_threshold);
+    ProposalLayer(int prenms_topk, int keep_topk, float iou_threshold, const nvinfer1::Dims& image_size);
 
     ProposalLayer(const void* data, size_t length);
 
@@ -91,12 +92,11 @@ public:
 
 private:
     void check_valid_inputs(const nvinfer1::Dims* inputs, int nbInputDims);
-    void generate_pyramid_anchors();
+    void generate_pyramid_anchors(const nvinfer1::Dims& image_size);
 
     int mBackgroundLabel;
     int mPreNMSTopK;
     int mKeepTopK;
-    float mScoreThreshold;
     float mIOUThreshold;
 
     int mMaxBatchSize;
@@ -106,6 +106,7 @@ private:
         mAnchorBoxesDevice; // [N, anchors(261888 for resnet101 + 1024*1024), (y1, x1, y2, x2)]
     std::vector<float> mAnchorBoxesHost;
 
+    nvinfer1::Dims mImageSize;
     nvinfer1::DataType mType;
     RefineNMSParameters mParam;
 
@@ -133,7 +134,6 @@ private:
     static PluginFieldCollection mFC;
     int mPreNMSTopK;
     int mKeepTopK;
-    float mScoreThreshold;
     float mIOUThreshold;
     static std::vector<PluginField> mPluginAttributes;
 };

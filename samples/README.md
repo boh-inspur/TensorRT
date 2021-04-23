@@ -1,79 +1,45 @@
-# Cross Compilation Guide
+# TensorRT Samples
 
-This guide shows how to cross compile TensorRT samples for AArch64 QNX, Linux and Android platform under x86_64 Linux.
+## Contents
 
-### Common Prerequisites
+| Sample | Language | Format | Description |
+|---|---|---|---|
+| [sampleAlgorithmSelector](opensource/sampleAlgorithmSelector) | C++ | Caffe | Algorithm Selection API usage |
+| [sampleCharRNN](opensource/sampleCharRNN) | C++ | INetwork | Building An RNN Network Layer By Layer |
+| [sampleDynamicReshape](opensource/sampleDynamicReshape) | C++ | ONNX | Digit Recognition With Dynamic Shapes In TensorRT |
+| [sampleFasterRCNN](opensource/sampleFasterRCNN) | C++ | Caffe | Object Detection With Faster R-CNN |
+| [sampleGoogleNet](opensource/sampleGoogleNet) | C++ | Caffe | Building And Running GoogleNet In TensorRT |
+| [sampleINT8](opensource/sampleINT8) | C++ | Caffe | Building And Running GoogleNet In TensorRT |
+| [sampleINT8API](opensource/sampleINT8API) | C++ | Caffe | Performing Inference In INT8 Precision |
+| [sampleMLP](opensource/sampleMLP) | C++ | INetwork | “Hello World” For Multilayer Perceptron (MLP) |
+| [sampleMNIST](opensource/sampleMNIST) | C++ | Caffe | “Hello World” For TensorRT |
+| [sampleMNISTAPI](opensource/sampleMNISTAPI) | C++ | INetwork | Building a Simple MNIST Network Layer by Layer |
+| [sampleMovieLens](opensource/sampleMovieLens) | C++ | UFF | Movie Recommendation Using Neural Collaborative Filter |
+| [sampleMovieLensMPS](opensource/sampleMovieLensMPS) | C++ | UFF | Movie Recommendation With MPS (Multi-Process Service) |
+| [sampleNMT](opensource/sampleNMT) | C++ | INetwork | Neural Machine Translation Using A seq2seq Model |
+| [sampleOnnxMNIST](opensource/sampleOnnxMNIST) | C++ | ONNX | “Hello World” For TensorRT With ONNX |
+| [sampleOnnxMnistCoordConvAC](opensource/sampleOnnxMnistCoordConvAC) | C++ | ONNX | Implementing CoordConv with a custom plugin |
+| [samplePlugin](opensource/samplePlugin) | C++ | Caffe | Adding A Custom Layer In TensorRT |
+| [sampleReformatFreeIO](opensource/sampleReformatFreeIO) | C++ | Caffe | Specifying I/O Formats Via Reformat-Free-I/O API |
+| [sampleSSD](opensource/sampleSSD) | C++ | Caffe | Object Detection With SSD |
+| [sampleUffFasterRCNN](opensource/sampleUffFasterRCNN) | C++ | UFF | Object Detection With A TensorFlow FasterRCNN Network |
+| [sampleUffMNIST](opensource/sampleUffMNIST) | C++ | UFF | Import A TensorFlow Model And Run Inference |
+| [sampleUffMaskRCNN](opensource/sampleUffMaskRCNN) | C++ | UFF | Object Detection And Instance Segmentation With MasK R-CNN Network |
+| [sampleUffPluginV2Ext](opensource/sampleUffPluginV2Ext) | C++ | UFF | Adding A Custom Layer That Supports INT8 I/O To Your Network |
+| [sampleUffSSD](opensource/sampleUffSSD) | C++ | UFF | Object Detection With A TensorFlow SSD Network |
+| [trtexec](opensource/trtexec) | C++ | All | TensorRT Command-Line Wrapper: trtexec |
+| [end_to_end_tensorflow_mnist](python/end_to_end_tensorflow_mnist) | Python | UFF | “Hello World” For TensorRT Using TensorFlow |
+| [engine_refit_mnist](python/engine_refit_mnist) | Python | INetwork | Refitting A TensorRT Engine |
+| [int8_caffe_mnist](python/int8_caffe_mnist) | Python | Caffe | INT8 Calibration |
+| [introductory_parser_samples](python/introductory_parser_samples) | Python | Any | Introduction To Importing Models Using TensorRT Parsers |
+| [network_api_pytorch_mnist](python/network_api_pytorch_mnist) | Python | INetwork | “Hello World” For TensorRT |
+| [onnx_packnet](python/onnx_packnet) | Python | ONNX | TensorRT Inference Of ONNX Models With Custom Layers |
+| [uff_custom_plugin](python/uff_custom_plugin) | Python | INetwork | Adding A Custom Layer To Your TensorFlow Network In TensorRT |
+| [uff_ssd](python/uff_ssd) | Python | UFF | Object Detection with SSD |
+| [yolov3_onnx](python/yolov3_onnx) | Python | ONNX | Object Detection Using YOLOv3 With TensorRT ONNX Backend |
 
-* Install the CUDA cross-platform toolkit for the the corresponding target, and set the environment variable `CUDA_INSTALL_DIR`
 
-  ```shell
-  export CUDA_INSTALL_DIR="your cuda install dir"
-  ```
+## Known Limitations
 
-  `CUDA_INSTALL_DIR` is set to `/usr/local/cuda` by default.
-
-* Install the cuDNN cross-platform libraries for the corresponding target, and set the environment variable `CUDNN_INSTALL_DIR`
-
-  ```shell
-  export CUDNN_INSTALL_DIR="your cudnn install dir"
-  ```
-
-  `CUDNN_INSTALL_DIR` is set to `CUDA_INSTALL_DIR` by default.
-
-* Install the TensorRT cross compilation debian packages for the corresponding target.
-  * QNX AArch64: libnvinfer-dev-cross-qnx, libnvinfer5-cross-qnx
-  * Linux AArch64: libnvinfer-dev-cross-aarch64, libnvinfer5-cross-aarch64
-  * Android AArch64: No debian packages are available.
-
-  If you are using the tar file released by the TensorRT team, you can safely skip this step. The tar file release already includes the cross compile libraries so no additional packages are required.
-
-### Build Samples for QNX AArch64
-
-Download the QNX toolchain and export the following environment variables.
-
-```shell
-export QNX_HOST=/path/to/your/qnx/toolchains/host/linux/x86_64
-export QNX_TARGET=/path/to/your/qnx/toolchain/target/qnx7
-```
-
-Build samples via
-
-```shell
-cd /path/to/TensorRT/samples
-make TARGET=qnx
-```
-
-### Build Samples for Linux AArch64
-
-Sample compilation for Linux aarch64 needs the corresponding g++ compiler, `aarch64-linux-gnu-g++`. In Ubuntu, this can be installed via
-
-```shell
-sudo apt-get install g++-aarch64-linux-gnu
-```
-
-Build samples via
-
-```shell
-cd /path/to/TensorRT/samples
-make TARGET=aarch64
-```
-
-### Build Samples for Android AArch64
-
-Download Android NDK(r16b) from https://developer.android.com/ndk/.  After downloading the NDK, create a standalone toolchain, for example
-
-```shell
-$NDK/build/tools/make_standalone_toolchain.py \
-  --arch arm64 \
-  --api 26 \
-  --install-dir=/path/to/my-toolchain
-```
-
-You can check the details on https://developer.android.com/ndk/guides/standalone_toolchain.
-
-Build samples via
-
-```shell
-cd /path/to/TensorRT/samples
-make TARGET=android64 ANDROID_CC=/path/to/my-toolchain/bin/aarch64-linux-android-clang++
-```
+  - UFF converter and GraphSurgeon tools are only supported with Tensorflow 1.x
+  - For the UFF samples, please use the [NVIDIA tf1 (Tensorflow 1.x)](https://docs.nvidia.com/deeplearning/frameworks/tensorflow-release-notes/running.html#running) for running these tests or install Tensorflow 1.x manually.

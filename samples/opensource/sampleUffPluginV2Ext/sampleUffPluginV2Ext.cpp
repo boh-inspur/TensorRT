@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "NvUffParser.h"
 #include <cassert>
 #include <chrono>
+#include <cstring>
 #include <cudnn.h>
 #include <iostream>
 #include <map>
@@ -119,12 +120,12 @@ void* createMnistCudaBuffer(int64_t eltCount, DataType dtype, int num)
     readPGMFile(std::to_string(num) + ".pgm", fileData);
 
     // display the number in an ascii representation
-    gLogInfo << "Input:\n";
+    sample::gLogInfo << "Input:\n";
     for (int i = 0; i < eltCount; i++)
     {
-        gLogInfo << (" .:-=+*#%@"[fileData[i] / 26]) << (((i + 1) % INPUT_W) ? "" : "\n");
+        sample::gLogInfo << (" .:-=+*#%@"[fileData[i] / 26]) << (((i + 1) % INPUT_W) ? "" : "\n");
     }
-    gLogInfo << std::endl;
+    sample::gLogInfo << std::endl;
 
     // initialize the inputs buffer
     for (int i = 0; i < eltCount; i++)
@@ -150,22 +151,22 @@ bool verifyOutput(int64_t eltCount, DataType dtype, void* buffer, int num)
 
     int maxIdx = std::distance(outputs.begin(), std::max_element(outputs.begin(), outputs.end()));
 
-    std::ios::fmtflags prevSettings = gLogInfo.flags();
-    gLogInfo.setf(std::ios::fixed, std::ios::floatfield);
-    gLogInfo.precision(6);
-    gLogInfo << "Output:\n";
+    std::ios::fmtflags prevSettings = sample::gLogInfo.flags();
+    sample::gLogInfo.setf(std::ios::fixed, std::ios::floatfield);
+    sample::gLogInfo.precision(6);
+    sample::gLogInfo << "Output:\n";
     for (int64_t eltIdx = 0; eltIdx < eltCount; ++eltIdx)
     {
-        gLogInfo << eltIdx << " => " << std::setw(10) << outputs[eltIdx] << "\t : ";
+        sample::gLogInfo << eltIdx << " => " << std::setw(10) << outputs[eltIdx] << "\t : ";
         if (eltIdx == maxIdx)
         {
-            gLogInfo << "***";
+            sample::gLogInfo << "***";
             pass = eltIdx == num ? true : false;
         }
-        gLogInfo << "\n";
+        sample::gLogInfo << "\n";
     }
-    gLogInfo.flags(prevSettings);
-    gLogInfo << std::endl;
+    sample::gLogInfo.flags(prevSettings);
+    sample::gLogInfo << std::endl;
     return pass;
 }
 
@@ -205,29 +206,29 @@ public:
         parser->registerInput("in", Dims3(1, 28, 28), UffInputOrder::kNCHW);
         parser->registerOutput("out");
 
-        SampleUniquePtr<IBuilder> builder{createInferBuilder(gLogger.getTRTLogger())};
+        SampleUniquePtr<IBuilder> builder{createInferBuilder(sample::gLogger.getTRTLogger())};
         if (!builder.get())
         {
-            gLogError << "Failed to create infer builder. " << std::endl;
+            sample::gLogError << "Failed to create infer builder. " << std::endl;
             return false;
         }
 
         SampleUniquePtr<INetworkDefinition> network{builder->createNetwork()};
         if (!network.get())
         {
-            gLogError << "Failed to create network. " << std::endl;
+            sample::gLogError << "Failed to create network. " << std::endl;
             return false;
         }
 
         if (!parser->parse(mParams.uffFileName.data(), *network, nvinfer1::DataType::kFLOAT))
         {
-            gLogError << "Failure while parsing UFF file" << std::endl;
+            sample::gLogError << "Failure while parsing UFF file" << std::endl;
             return false;
         }
 
         if (gArgs.runInInt8)
         {
-            samplesCommon::setAllTensorScales(network.get(), 5.0f, 5.0f);
+            samplesCommon::setAllTensorScales(network.get(), 25.0f, 25.0f);
         }
 
         SampleUniquePtr<IBuilderConfig> networkConfig{builder->createBuilderConfig()};
@@ -253,7 +254,7 @@ public:
         mEngine.reset(builder->buildEngineWithConfig(*network, *networkConfig));
         if (!mEngine.get())
         {
-            gLogError << "Unable to create engine. " << std::endl;
+            sample::gLogError << "Unable to create engine. " << std::endl;
             return false;
         }
         return true;
@@ -290,7 +291,7 @@ public:
             {
                 buffers[bindingIdxInput] = createMnistCudaBuffer(bufferSizesInput.first, bufferSizesInput.second, num);
                 auto t_start = std::chrono::high_resolution_clock::now();
-                context->execute(batchSize, &buffers[0]);
+                ASSERT(context->execute(batchSize, &buffers[0]));
                 auto t_end = std::chrono::high_resolution_clock::now();
                 ms = std::chrono::duration<float, std::milli>(t_end - t_start).count();
                 total += ms;
@@ -307,7 +308,7 @@ public:
                 CHECK(cudaFree(buffers[bindingIdxInput]));
             }
             total /= numberRun;
-            gLogInfo << "Average over " << numberRun << " runs is " << total << " ms." << std::endl;
+            sample::gLogInfo << "Average over " << numberRun << " runs is " << total << " ms." << std::endl;
         }
 
         for (int bindingIdx = 0; bindingIdx < nbBindings; ++bindingIdx)
@@ -579,14 +580,15 @@ private:
     template <typename T>
     void write(char*& buffer, const T& val) const
     {
-        *reinterpret_cast<T*>(buffer) = val;
+        std::memcpy(buffer, &val, sizeof(T));
         buffer += sizeof(T);
     }
 
     template <typename T>
     T read(const char*& buffer) const
     {
-        T val = *reinterpret_cast<const T*>(buffer);
+        T val{};
+        std::memcpy(&val, buffer, sizeof(T));
         buffer += sizeof(T);
         return val;
     }
@@ -595,36 +597,36 @@ private:
     {
         assert(mDataType == DataType::kINT8);
         size_t inCount = getC(mInputDims) * getH(mInputDims) * getW(mInputDims);
-        std::unique_ptr<char> inputTmp{new char[inCount * elementSize(mDataType)]};
-        CHECK(cudaMemcpy(inputTmp.get(), src, inCount * elementSize(mDataType), cudaMemcpyDeviceToHost));
-        std::unique_ptr<float> inputFP32{new float[inCount]};
-        transform<DataType::kINT8, DataType::kFLOAT>(inputTmp.get(), inputFP32.get(), inCount);
+        std::vector<char> inputTmp(inCount * elementSize(mDataType));
+        CHECK(cudaMemcpy(inputTmp.data(), src, inCount * elementSize(mDataType), cudaMemcpyDeviceToHost));
+        std::vector<float> inputFP32(inCount);
+        transform<DataType::kINT8, DataType::kFLOAT>(inputTmp.data(), inputFP32.data(), inCount);
         // int8 scale
         int hw = mInputDims.d[1] * mInputDims.d[2];
         for (int j = 0; j < mInputDims.d[0]; ++j)
         {
-            std::transform(inputFP32.get() + hw * j, inputFP32.get() + hw * (j + 1), inputFP32.get() + hw * j,
+            std::transform(inputFP32.data() + hw * j, inputFP32.data() + hw * (j + 1), inputFP32.data() + hw * j,
                 [&](float in) -> float { return in * mInHostScale; });
         }
         CHECK(cudaMalloc(&dst, inCount * elementSize(DataType::kFLOAT)));
-        CHECK(cudaMemcpy(dst, inputFP32.get(), inCount * elementSize(DataType::kFLOAT), cudaMemcpyHostToDevice));
+        CHECK(cudaMemcpy(dst, inputFP32.data(), inCount * elementSize(DataType::kFLOAT), cudaMemcpyHostToDevice));
     }
 
     void copyDeviceToInt8Output(const void* src, void* dst)
     {
         size_t outCount = getC(mOutputDims) * getH(mOutputDims) * getW(mOutputDims);
-        std::unique_ptr<float> outTmp{new float[outCount]};
-        CHECK(cudaMemcpy(outTmp.get(), src, outCount * elementSize(DataType::kFLOAT), cudaMemcpyDeviceToHost));
-        std::unique_ptr<char> outInt8{new char[outCount * elementSize(DataType::kINT8)]};
+        std::vector<float> outTmp(outCount);
+        CHECK(cudaMemcpy(outTmp.data(), src, outCount * elementSize(DataType::kFLOAT), cudaMemcpyDeviceToHost));
+        std::vector<char> outInt8(outCount * elementSize(DataType::kINT8));
         // int8 + scale
         int hw = mOutputDims.d[1] * mOutputDims.d[2];
         for (int j = 0; j < mInputDims.d[0]; ++j)
         {
-            std::transform(outTmp.get() + hw * j, outTmp.get() + hw * (j + 1), outTmp.get() + hw * j,
+            std::transform(outTmp.data() + hw * j, outTmp.data() + hw * (j + 1), outTmp.data() + hw * j,
                 [&](float in) -> float { return in / mOutHostScale; });
         }
-        transform<DataType::kFLOAT, DataType::kINT8>(outTmp.get(), outInt8.get(), outCount);
-        CHECK(cudaMemcpy(dst, outInt8.get(), outCount, cudaMemcpyHostToDevice));
+        transform<DataType::kFLOAT, DataType::kINT8>(outTmp.data(), outInt8.data(), outCount);
+        CHECK(cudaMemcpy(dst, outInt8.data(), outCount, cudaMemcpyHostToDevice));
     }
 
 private:
@@ -720,7 +722,7 @@ int main(int argc, char** argv)
     }
     if (!argsOK)
     {
-        gLogError << "Invalid arguments" << std::endl;
+        sample::gLogError << "Invalid arguments" << std::endl;
         printHelpInfo();
         return EXIT_FAILURE;
     }
@@ -728,30 +730,29 @@ int main(int argc, char** argv)
     {
         gArgs.dataDirs = std::vector<std::string>{"data/samples/mnist/", "data/mnist/"};
     }
+    auto sampleTest = sample::gLogger.defineTest(gSampleName, argc, argv);
 
-    auto sampleTest = gLogger.defineTest(gSampleName, argc, argv);
-
-    gLogger.reportTestStart(sampleTest);
+    sample::gLogger.reportTestStart(sampleTest);
 
     samplesCommon::UffSampleParams params;
     params.uffFileName = locateFile("lenet5_custom_pool.uff", gArgs.dataDirs);
-    gLogInfo << params.uffFileName << std::endl;
+    sample::gLogInfo << params.uffFileName << std::endl;
     SampleUffPluginV2Ext sample(params);
 
     if (!sample.build())
     {
-        return gLogger.reportFail(sampleTest);
+        return sample::gLogger.reportFail(sampleTest);
     }
 
     if (!sample.infer())
     {
-        return gLogger.reportFail(sampleTest);
+        return sample::gLogger.reportFail(sampleTest);
     }
 
     if (!sample.teardown())
     {
-        return gLogger.reportFail(sampleTest);
+        return sample::gLogger.reportFail(sampleTest);
     }
 
-    return gLogger.reportPass(sampleTest);
+    return sample::gLogger.reportPass(sampleTest);
 }

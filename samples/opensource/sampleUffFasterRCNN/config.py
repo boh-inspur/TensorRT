@@ -1,4 +1,5 @@
-# Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+#
+# Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import tensorflow as tf
 import graphsurgeon as gs
 
@@ -31,6 +33,5 @@ namespace_plugin_map = {
 def preprocess(dynamic_graph):
     # Now create a new graph by collapsing namespaces
     dynamic_graph.append(Proposal)
-    dynamic_graph.remove('input_2')
+    dynamic_graph.remove(dynamic_graph.find_nodes_by_name('input_2'))
     dynamic_graph.collapse_namespaces(namespace_plugin_map)
-
